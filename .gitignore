@@ -1,0 +1,22 @@
+﻿# Local credentials and certificates
+.env
+.env.*
+!.env.example
+auto.crt
+auto.key
+
+# Dependencies and generated build output
+**/node_modules/
+frontend/.next/
+frontend/.next-dev/
+frontend/out/
+
+# Local MediaMTX runtime data and downloaded executable
+mediamtx/*.log
+mediamtx/bin/
+
+# Local editor and OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

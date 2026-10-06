@@ -1,0 +1,23 @@
+# Paths are NOT statically declared here. They are registered at runtime by the
+# backend (src/mediamtx.js) via this API, straight from the cameras/nvrs tables,
+# using friendly IDs (cam-<id>-main / cam-<id>-sub) that never leak NVR credentials
+# to the frontend. Do not add a wildcard "paths: all:" entry - it would let any
+# client publish or pull an arbitrary path name.
+api: yes
+apiAddress: :9997
+
+webrtc: yes
+webrtcAddress: :8889
+# REQUIRED for LAN deployments: without this, WebRTC ICE candidates advertise
+# the container's internal Docker IP, which browsers on other LAN machines
+# cannot reach - streams will hang at "CONNECTING". Set this to the actual
+# LAN IP (or hostname) of the machine running Docker, e.g. 192.168.1.50.
+webrtcAdditionalHosts: [192.168.11.203, 192.168.11.130]
+
+hls: yes
+hlsAddress: :8888
+
+rtsp: yes
+rtspAddress: :8554
+
+paths: {}
