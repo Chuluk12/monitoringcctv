@@ -12,7 +12,7 @@ webrtcAddress: :8889
 # the container's internal Docker IP, which browsers on other LAN machines
 # cannot reach - streams will hang at "CONNECTING". Set this to the actual
 # LAN IP (or hostname) of the machine running Docker, e.g. 192.168.1.50.
-webrtcAdditionalHosts: [192.168.11.203, 192.168.11.130]
+webrtcAdditionalHosts: [mmtx.gte.co.id,192.168.11.203, 192.168.11.130]
 
 hls: yes
 hlsAddress: :8888
