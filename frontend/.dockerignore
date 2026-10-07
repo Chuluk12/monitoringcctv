@@ -1,0 +1,10 @@
+node_modules
+.next
+.next-dev
+.env
+.env.*
+*.md
+.git
+.gitignore
+public/images
+public/fonts
