@@ -1,0 +1,151 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build & Push GHCR Images
+        env:
+          GH_USERNAME: ${{ secrets.GH_USERNAME }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || '/api' }}
+          NEXT_PUBLIC_WEBRTC_BASE: ${{ vars.NEXT_PUBLIC_WEBRTC_BASE }}
+        run: |
+          set -euo pipefail
+
+          REPO="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_USERNAME" --password-stdin
+
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
+            --build-arg NEXT_PUBLIC_WEBRTC_BASE="$NEXT_PUBLIC_WEBRTC_BASE" \
+            -t "$REPO/frontend:latest" ./frontend
+          docker build -t "$REPO/backend:latest" ./backend
+
+          docker push "$REPO/frontend:latest"
+          docker push "$REPO/backend:latest"
+
+      - name: Connect to OpenVPN
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y openvpn
+
+          cat > /tmp/client.ovpn <<'EOF'
+          ${{ secrets.OPENVPN_CONFIG }}
+          EOF
+
+          sudo openvpn --config /tmp/client.ovpn --daemon
+
+          echo "Waiting for OpenVPN..."
+          for i in {1..20}; do
+            if ip addr show tun0 >/dev/null 2>&1; then
+              echo "OpenVPN connected"
+              ip addr show tun0
+              break
+            fi
+            sleep 2
+          done
+
+          ip addr show tun0 >/dev/null 2>&1 || {
+            echo "OpenVPN failed to connect"
+            exit 1
+          }
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USERNAME: ${{ secrets.GH_USERNAME }}
+          REPO: ${{ github.repository }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          timeout: 60s
+          command_timeout: 25m
+          envs: GH_TOKEN,GH_USERNAME,REPO
+          script: |
+            set -eu
+
+            GHCR_REPO="ghcr.io/$(echo "$REPO" | tr '[:upper:]' '[:lower:]')"
+            DEPLOY_DIR="$HOME/repositories/monitoringcctv"
+            mkdir -p "$DEPLOY_DIR/mediamtx"
+            cd "$DEPLOY_DIR"
+
+            cat > docker-compose.yml <<'EOF'
+            services:
+              mediamtx:
+                image: bluenviron/mediamtx:latest
+                container_name: monitoringcctv-mediamtx
+                restart: unless-stopped
+                volumes:
+                  - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+                ports:
+                  - "7082:8554"
+                  - "7083:8888"
+                  - "7084:8889"
+                  - "7085:9997"
+                  - "7086:8189/udp"
+                networks:
+                  - cctv_network
+
+              backend:
+                image: __BACKEND_IMAGE__
+                container_name: monitoringcctv-backend
+                restart: unless-stopped
+                env_file:
+                  - ./.env
+                environment:
+                  PORT: 4000
+                  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}
+                  MEDIAMTX_API: http://mediamtx:9997
+                depends_on:
+                  - mediamtx
+                ports:
+                  - "7081:4000"
+                networks:
+                  - cctv_network
+                  - postgres_database
+
+              frontend:
+                image: __FRONTEND_IMAGE__
+                container_name: monitoringcctv-frontend
+                restart: unless-stopped
+                depends_on:
+                  - backend
+                ports:
+                  - "7080:3000"
+                networks:
+                  - cctv_network
+
+            networks:
+              cctv_network:
+                driver: bridge
+              postgres_database:
+                external: true
+            EOF
+
+            sed -i "s|__BACKEND_IMAGE__|$GHCR_REPO/backend:latest|g; s|__FRONTEND_IMAGE__|$GHCR_REPO/frontend:latest|g" docker-compose.yml
+
+            echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_USERNAME" --password-stdin
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
