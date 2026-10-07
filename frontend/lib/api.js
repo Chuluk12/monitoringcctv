@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const rawApi = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Strip trailing slash and trailing /api to prevent double /api/api
+const API = rawApi.replace(/\/+$/, '').replace(/\/api$/, '');
 
 export function currentUser() {
   if (typeof window === 'undefined') return null;

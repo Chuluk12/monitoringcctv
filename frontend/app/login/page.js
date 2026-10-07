@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '../../components/Icon';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const rawApi = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API = rawApi.replace(/\/+$/, '').replace(/\/api$/, '');
 
 function Brand({ compact = false }) {
   return <div className={`login-brand${compact ? ' login-brand--compact' : ''}`}>
@@ -42,7 +43,7 @@ export default function Login() {
     if (!password) { setError('Password wajib diisi.'); return; }
     setSubmitting(true);
     try {
-      const response = await fetch(`${API}/auth/login`, {
+      const response = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),
