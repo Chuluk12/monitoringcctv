@@ -42,7 +42,7 @@ export default function Login() {
     if (!password) { setError('Password wajib diisi.'); return; }
     setSubmitting(true);
     try {
-      const response = await fetch(`${API}/api/auth/login`, {
+      const response = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),
