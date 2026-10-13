@@ -23,6 +23,8 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN}
       HEALTH_CHECK_INTERVAL_SECONDS: ${HEALTH_CHECK_INTERVAL_SECONDS}
       MEDIAMTX_API: http://mediamtx:9997
+      MEDIAMTX_API_USER: ${MEDIAMTX_API_USER}
+      MEDIAMTX_API_PASSWORD: ${MEDIAMTX_API_PASSWORD}
     depends_on:
       mediamtx: { condition: service_started }
     ports: ["7081:4000"]

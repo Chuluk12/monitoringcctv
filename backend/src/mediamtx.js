@@ -6,6 +6,16 @@
 const { decrypt } = require('./crypto');
 
 const API = process.env.MEDIAMTX_API || 'http://mediamtx:9997';
+const API_USER = process.env.MEDIAMTX_API_USER;
+const API_PASSWORD = process.env.MEDIAMTX_API_PASSWORD;
+
+function apiHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (API_USER) {
+    headers.Authorization = `Basic ${Buffer.from(`${API_USER}:${API_PASSWORD || ''}`).toString('base64')}`;
+  }
+  return headers;
+}
 
 function mainPathName(cameraId) { return `cam-${cameraId}-main`; }
 function subPathName(cameraId) { return `cam-${cameraId}-sub`; }
@@ -18,11 +28,21 @@ function buildRtspUrl(nvr, relativePath) {
 }
 
 async function upsertPath(name, source) {
-  const res = await fetch(`${API}/v3/config/paths/replace/${encodeURIComponent(name)}`, {
+  const payload = JSON.stringify({ source, sourceOnDemand: true });
+  // Try adding first (for new path), if already exists (400/409), replace it.
+  let res = await fetch(`${API}/v3/config/paths/add/${encodeURIComponent(name)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source, sourceOnDemand: true }),
+    headers: apiHeaders(),
+    body: payload,
   });
+  if (!res.ok) {
+    // If path already exists, update/replace it
+    res = await fetch(`${API}/v3/config/paths/replace/${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: payload,
+    });
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`MediaMTX upsert path ${name} failed: ${res.status} ${body}`);
@@ -30,7 +50,10 @@ async function upsertPath(name, source) {
 }
 
 async function deletePath(name) {
-  const res = await fetch(`${API}/v3/config/paths/delete/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  const res = await fetch(`${API}/v3/config/paths/delete/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: apiHeaders(),
+  });
   // 404 just means it was never registered - fine.
   if (!res.ok && res.status !== 404) {
     const body = await res.text().catch(() => '');
@@ -58,7 +81,7 @@ async function listRuntimePaths() {
   let page = 0;
   let pageCount = 1;
   do {
-    const res = await fetch(`${API}/v3/paths/list?page=${page}`);
+    const res = await fetch(`${API}/v3/paths/list?page=${page}`, { headers: apiHeaders() });
     if (!res.ok) throw new Error(`MediaMTX paths/list page ${page} failed: ${res.status}`);
     const data = await res.json();
     for (const item of data.items || []) map.set(item.name, item);

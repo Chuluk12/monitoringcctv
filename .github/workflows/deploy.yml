@@ -117,6 +117,8 @@ jobs:
                   PORT: 4000
                   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}
                   MEDIAMTX_API: http://mediamtx:9997
+                  MEDIAMTX_API_USER: ${MEDIAMTX_API_USER}
+                  MEDIAMTX_API_PASSWORD: ${MEDIAMTX_API_PASSWORD}
                 depends_on:
                   - mediamtx
                 ports:
